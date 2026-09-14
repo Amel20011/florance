@@ -1,23 +1,20 @@
 import { z } from 'zod';
 
 export const sendOtpSchema = z.object({
-  email: z
+  phone: z
     .string()
     .trim()
-    .toLowerCase()
-    .min(1, 'Alamat email wajib diisi.')
-    .email('Format alamat email tidak valid (contoh: user@gmail.com).')
-    .max(254, 'Panjang email melebihi batas yang diizinkan.'),
+    .min(10, 'Nomor WhatsApp minimal 10 digit.')
+    .max(20, 'Nomor WhatsApp terlalu panjang.')
+    .regex(/^(\+62|62|0)8[1-9][0-9]{6,11}$/, 'Format nomor WhatsApp tidak valid (contoh: 08123456789).'),
 });
 
 export const verifyOtpSchema = z.object({
-  email: z
+  phone: z
     .string()
     .trim()
-    .toLowerCase()
-    .min(1, 'Alamat email wajib diisi.')
-    .email('Format alamat email tidak valid.')
-    .max(254, 'Panjang email melebihi batas yang diizinkan.'),
+    .min(10, 'Nomor WhatsApp minimal 10 digit.')
+    .max(20, 'Nomor WhatsApp terlalu panjang.'),
   otp: z
     .string()
     .trim()
@@ -27,4 +24,3 @@ export const verifyOtpSchema = z.object({
 
 export type SendOtpInput = z.infer<typeof sendOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
-

@@ -85,7 +85,7 @@ export interface UserProfile {
   email: string;
   avatar: string;
   balance?: number;
-  provider?: 'google' | 'apple' | 'email';
+  provider?: 'google' | 'apple' | 'email' | 'whatsapp';
   isVerified?: boolean;
   verifiedAt?: string;
   bio?: string;

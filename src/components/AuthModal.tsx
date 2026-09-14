@@ -1,48 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  X,
-  Mail,
-  KeyRound,
-  ArrowRight,
-  ShieldCheck,
-  AlertTriangle,
-  CheckCircle2,
-  RefreshCw,
-  Edit3,
-  Clock,
-  Lock,
-} from 'lucide-react';
-import { UserProfile } from '../types.js';
+import { X, Phone, KeyRound, AlertTriangle, CheckCircle2, ArrowRight, RefreshCw, Clock, Edit3, Lock } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: UserProfile) => void;
+  onLoginSuccess: (user: any) => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({
-  isOpen,
-  onClose,
-  onLoginSuccess,
-}) => {
-  const [step, setStep] = useState<'email' | 'otp'>('email');
-  const [email, setEmail] = useState('');
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
+  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [phone, setPhone] = useState('');
+  const [phoneSentTo, setPhoneSentTo] = useState('');
   const [otp, setOtp] = useState('');
-  const [emailSentTo, setEmailSentTo] = useState('');
-
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const [resendCooldown, setResendCooldown] = useState<number>(0);
-  const [expiryCountdown, setExpiryCountdown] = useState<number>(300);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [expiryCountdown, setExpiryCountdown] = useState(300); // 5 minutes
 
   const otpInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setStep('email');
+      setStep('phone');
+      setPhone('');
       setOtp('');
       setErrorMessage(null);
       setSuccessMessage(null);
@@ -90,11 +72,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    const cleanEmail = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cleanPhone = phone.trim();
+    const phoneRegex = /^(\+62|62|0)8[1-9][0-9]{6,11}$/;
 
-    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      setErrorMessage('Harap masukkan format email yang valid.');
+    if (!cleanPhone || !phoneRegex.test(cleanPhone)) {
+      setErrorMessage('Harap masukkan nomor WhatsApp yang valid (contoh: 08123456789).');
       return;
     }
 
@@ -106,23 +88,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail }),
+        body: JSON.stringify({ phone: cleanPhone }),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setErrorMessage(data.message || data.error || 'Gagal mengirim kode OTP.');
+        setErrorMessage(data.message || data.error || 'Gagal mengirim kode OTP WhatsApp.');
         setIsLoading(false);
         return;
       }
 
-      setEmailSentTo(cleanEmail);
+      setPhoneSentTo(cleanPhone);
       setStep('otp');
       setOtp('');
       setResendCooldown(60);
       setExpiryCountdown(300);
-      setSuccessMessage('Kode OTP 6 digit telah dikirim ke email Anda.');
+      setSuccessMessage('Kode OTP 6 digit telah dikirim ke nomor WhatsApp Anda via FlowKirim.');
     } catch (err) {
       console.error('Send OTP Error:', err);
       setErrorMessage('Terjadi kendala koneksi server.');
@@ -149,7 +131,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: emailSentTo,
+          phone: phoneSentTo,
           otp: cleanOtp,
         }),
       });
@@ -198,16 +180,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Modal Header */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 flex items-center justify-center mx-auto mb-3 text-blue-600 dark:text-blue-400">
-            {step === 'email' ? <Mail className="w-6 h-6" /> : <KeyRound className="w-6 h-6" />}
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center mx-auto mb-3 text-emerald-600 dark:text-emerald-400">
+            {step === 'phone' ? <Phone className="w-6 h-6" /> : <KeyRound className="w-6 h-6" />}
           </div>
           <h3 className="text-xl font-black text-slate-900 dark:text-white">
-            {step === 'email' ? 'Masuk dengan Email OTP' : 'Verifikasi Kode OTP'}
+            {step === 'phone' ? 'Masuk dengan WhatsApp OTP' : 'Verifikasi Kode OTP WhatsApp'}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {step === 'email'
-              ? 'Masukkan alamat email Anda untuk menerima 6 digit kode masuk'
-              : `Kode telah dikirim ke ${emailSentTo}`}
+            {step === 'phone'
+              ? 'Masukkan nomor WhatsApp aktif Anda untuk menerima 6 digit kode masuk'
+              : `Kode telah dikirim ke nomor ${phoneSentTo}`}
           </p>
         </div>
 
@@ -226,39 +208,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {/* STEP 1: EMAIL */}
-        {step === 'email' && (
+        {/* STEP 1: PHONE */}
+        {step === 'phone' && (
           <form onSubmit={handleSendOtp} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                Alamat Email (Gmail / Email Aktif)
+                Nomor WhatsApp (Contoh: 08123456789)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
+                  <Phone className="w-4 h-4" />
                 </div>
                 <input
-                  type="email"
+                  type="tel"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="nama@gmail.com"
-                  autoComplete="email"
-                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="08123456789"
+                  autoComplete="tel"
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={isLoading || !email.trim()}
-              className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed"
+              disabled={isLoading || !phone.trim()}
+              className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Kirim Kode OTP</span>
+                  <span>Kirim Kode OTP WhatsApp</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -270,17 +252,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {step === 'otp' && (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
-                {emailSentTo}
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 font-mono">
+                {phoneSentTo}
               </span>
               <button
                 type="button"
                 onClick={() => {
-                  setStep('email');
+                  setStep('phone');
                   setOtp('');
                   setErrorMessage(null);
                 }}
-                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Edit3 className="w-3 h-3" />
                 <span>Ubah</span>
@@ -306,14 +288,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="123456"
-                className="w-full py-3 px-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center font-mono text-2xl font-bold tracking-[0.4em] text-blue-600 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                className="w-full py-3 px-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center font-mono text-2xl font-bold tracking-[0.4em] text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
               />
             </div>
 
             <button
               type="submit"
               disabled={isLoading || otp.length !== 6 || expiryCountdown <= 0}
-              className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -326,12 +308,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </button>
 
             <div className="flex items-center justify-between pt-1 text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Belum dapat kode?</span>
+              <span className="text-slate-500 dark:text-slate-400">Belum terima pesan?</span>
               <button
                 type="button"
                 disabled={resendCooldown > 0 || isLoading}
                 onClick={() => handleSendOtp()}
-                className="font-bold text-blue-600 dark:text-blue-400 hover:underline disabled:text-slate-400 disabled:no-underline flex items-center gap-1 cursor-pointer"
+                className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline disabled:text-slate-400 disabled:no-underline flex items-center gap-1 cursor-pointer"
               >
                 <RefreshCw className="w-3 h-3" />
                 <span>

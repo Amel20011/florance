@@ -9,7 +9,7 @@ export interface RegisteredUser {
   phone?: string;
   avatar?: string;
   bio?: string;
-  provider: 'google' | 'apple' | 'email';
+  provider: 'google' | 'apple' | 'email' | 'whatsapp';
   isVerified: boolean;
   registeredAt: string;
   lastLoginAt: string;
@@ -578,12 +578,12 @@ export function updateOtpRecord(
   return db.email_otps[index];
 }
 
-export function upsertOtpVerifiedUser(email: string): RegisteredUser {
+export function upsertOtpVerifiedUserForPhone(phone: string): RegisteredUser {
   const db = ensureDb();
   if (!db.users) db.users = [];
 
-  const cleanEmail = email.toLowerCase().trim();
-  const existingIndex = db.users.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+  const cleanPhone = phone.trim();
+  const existingIndex = db.users.findIndex((u) => u.phone === cleanPhone);
   const now = new Date().toISOString();
 
   if (existingIndex !== -1) {
@@ -598,16 +598,15 @@ export function upsertOtpVerifiedUser(email: string): RegisteredUser {
     return updated;
   }
 
-  const name = cleanEmail.split('@')[0];
-  const newId = `usr_email_${Date.now().toString(36)}`;
+  const newId = `usr_wa_${Date.now().toString(36)}`;
   const newUser: RegisteredUser = {
     id: newId,
-    email: cleanEmail,
-    name: name.charAt(0).toUpperCase() + name.slice(1),
-    phone: '081234567890',
+    email: `${cleanPhone}@whatsapp.user`,
+    name: `User WhatsApp (${cleanPhone.slice(-4)})`,
+    phone: cleanPhone,
     avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80`,
-    bio: 'Pengguna Terverifikasi Florance Digital',
-    provider: 'email',
+    bio: 'Pengguna Terverifikasi WhatsApp Florance Digital',
+    provider: 'whatsapp',
     isVerified: true,
     registeredAt: now,
     lastLoginAt: now,

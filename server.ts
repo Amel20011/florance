@@ -23,7 +23,7 @@ import {
   findUserByEmail,
   findUserById,
   updateUserProfileInDb,
-  upsertOtpVerifiedUser,
+  upsertOtpVerifiedUserForPhone,
   ADMIN_ACCESS_CODE,
 } from './src/lib/db.js';
 import { sendOtpSchema, verifyOtpSchema } from './src/lib/auth/validation.js';
@@ -40,7 +40,7 @@ import {
   invalidateSession,
   extractSessionId,
 } from './src/lib/auth/session.js';
-import { sendOtpEmail } from './src/lib/email/resend.js';
+import { sendWhatsAppOtp } from './src/lib/whatsapp.js';
 import { Order } from './src/types.js';
 
 interface RequestWithRawBody extends Request {
@@ -78,25 +78,25 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// ---------------- AUTHENTICATION PIPELINE (EMAIL OTP + SESSIONS) ---------------- //
+// ---------------- AUTHENTICATION PIPELINE (WHATSAPP OTP + SESSIONS) ---------------- //
 
 // 1. Send OTP Endpoint: POST /api/auth/send-otp
 app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
   try {
     const parseResult = sendOtpSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const issue = parseResult.error.issues[0]?.message || 'Format alamat email tidak valid.';
+      const issue = parseResult.error.issues[0]?.message || 'Nomor WhatsApp tidak valid.';
       return res.status(400).json({
         success: false,
-        error: 'INVALID_EMAIL',
+        error: 'INVALID_PHONE',
         message: issue,
       });
     }
 
-    const { email } = parseResult.data;
+    const { phone } = parseResult.data;
 
     // Check resend rate limit cooldown (60s default)
-    const cooldown = checkResendCooldown(email);
+    const cooldown = checkResendCooldown(phone);
     if (!cooldown.allowed) {
       return res.status(429).json({
         success: false,
@@ -107,29 +107,29 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
     }
 
     // Issue new cryptographically secure 6-digit OTP & store HMAC hash in DB
-    const { otpPlain } = issueNewOtp(email);
+    const { otpPlain } = issueNewOtp(phone);
 
-    // Send email via Resend
-    const emailResult = await sendOtpEmail(email, otpPlain, 'Florance Digital');
+    // Send WhatsApp message via FlowKirim API
+    const waResult = await sendWhatsAppOtp(phone, otpPlain, 'FLORANCE Digital');
 
-    // Server-side audit log (NEVER exposed to frontend response)
+    // Server-side audit log
     console.log(
-      `[Auth Server] OTP issued for: ${email} | Delivery: ${emailResult.success ? 'SENT' : 'FAILED'} | Exp: ${OTP_CONFIG.expiresInMinutes}m`
+      `[Auth WhatsApp] OTP issued for: ${phone} | Delivery: ${waResult.success ? 'SENT' : 'FAILED'} | Exp: ${OTP_CONFIG.expiresInMinutes}m`
     );
 
-    if (!emailResult.success) {
+    if (!waResult.success) {
       return res.status(500).json({
         success: false,
         error: 'OTP_SEND_FAILED',
         message:
-          emailResult.error ||
-          'Gagal mengirim kode verifikasi ke email. Pastikan konfigurasi Resend sudah benar.',
+          waResult.error ||
+          'Gagal mengirim kode verifikasi ke WhatsApp. Pastikan nomor aktif.',
       });
     }
 
     return res.json({
       success: true,
-      message: 'Kode OTP telah dikirim ke email.',
+      message: 'Kode OTP telah dikirim ke nomor WhatsApp Anda via FlowKirim.',
       expiresInMinutes: OTP_CONFIG.expiresInMinutes,
     });
   } catch (error: any) {
@@ -155,10 +155,10 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
       });
     }
 
-    const { email, otp } = parseResult.data;
+    const { phone, otp } = parseResult.data;
 
     // Verify OTP logic with attempts tracking, expiry check, timing-safe hash comparison
-    const verification = verifyOtp(email, otp);
+    const verification = verifyOtp(phone, otp);
 
     if (verification.success === false) {
       return res.status(400).json({
@@ -169,8 +169,8 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Upsert User: find existing or create new verified user
-    const user = upsertOtpVerifiedUser(email);
+    // Upsert User: find existing or create new verified user for phone
+    const user = upsertOtpVerifiedUserForPhone(phone);
     const balance = getUserBalance(user.id, user.email);
 
     // Create server-side session & HTTP-only cookie
@@ -179,7 +179,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      message: 'Verifikasi berhasil.',
+      message: 'Verifikasi WhatsApp berhasil.',
       token: session.token,
       user: {
         id: user.id,
@@ -199,7 +199,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'INTERNAL_SERVER_ERROR',
-      message: 'Terjadi kegagalan sistem saat memverifikasi kode OTP.',
+      message: 'Terjadi kesalahan sistem pada server saat memverifikasi kode OTP.',
     });
   }
 });

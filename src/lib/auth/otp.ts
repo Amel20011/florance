@@ -24,7 +24,7 @@ function getSecretKey(): string {
   return (
     process.env.SESSION_SECRET ||
     process.env.OTP_SECRET ||
-    'florance-secure-otp-session-secret-salt-2026'
+    'florance-secure-otp-whatsapp-secret-salt-2026'
   );
 }
 
@@ -37,23 +37,23 @@ export function generateSecureOtp(): string {
 }
 
 /**
- * Computes a secure HMAC-SHA256 hash of the OTP scoped to the email
+ * Computes a secure HMAC-SHA256 hash of the OTP scoped to the phone number
  */
-export function hashOtp(email: string, otp: string): string {
-  const normalizedEmail = email.trim().toLowerCase();
+export function hashOtp(phone: string, otp: string): string {
+  const normalizedPhone = phone.trim();
   const secret = getSecretKey();
   return crypto
     .createHmac('sha256', secret)
-    .update(`${normalizedEmail}:${otp}`)
+    .update(`${normalizedPhone}:${otp}`)
     .digest('hex');
 }
 
 /**
  * Constant-time comparison of candidate OTP hash against stored OTP hash
  */
-export function verifyOtpHash(email: string, candidateOtp: string, storedHash: string): boolean {
+export function verifyOtpHash(phone: string, candidateOtp: string, storedHash: string): boolean {
   try {
-    const candidateHash = hashOtp(email, candidateOtp);
+    const candidateHash = hashOtp(phone, candidateOtp);
     const candidateBuf = Buffer.from(candidateHash, 'hex');
     const storedBuf = Buffer.from(storedHash, 'hex');
 
@@ -81,12 +81,12 @@ export type OtpVerificationResult =
     };
 
 /**
- * Checks if the email is currently in resend cooldown
+ * Checks if the phone number is currently in resend cooldown
  */
-export function checkResendCooldown(email: string): { allowed: boolean; remainingSeconds: number } {
-  const normalizedEmail = email.trim().toLowerCase();
+export function checkResendCooldown(phone: string): { allowed: boolean; remainingSeconds: number } {
+  const normalizedPhone = phone.trim();
   const cooldownMs = OTP_CONFIG.resendCooldownSeconds * 1000;
-  const recent = getRecentOtpForEmail(normalizedEmail, cooldownMs);
+  const recent = getRecentOtpForEmail(normalizedPhone, cooldownMs);
 
   if (!recent) {
     return { allowed: true, remainingSeconds: 0 };
@@ -104,22 +104,22 @@ export function checkResendCooldown(email: string): { allowed: boolean; remainin
 /**
  * Prepares a new OTP record: invalidates previous active OTPs and returns the new plain OTP & record
  */
-export function issueNewOtp(email: string): { otpPlain: string; record: EmailOtpRecord } {
-  const normalizedEmail = email.trim().toLowerCase();
+export function issueNewOtp(phone: string): { otpPlain: string; record: EmailOtpRecord } {
+  const normalizedPhone = phone.trim();
 
-  // Invalidate any older unused OTPs for this email
-  invalidateAllOtpsForEmail(normalizedEmail);
+  // Invalidate any older unused OTPs for this phone
+  invalidateAllOtpsForEmail(normalizedPhone);
 
   // Generate new OTP
   const otpPlain = generateSecureOtp();
-  const otpHash = hashOtp(normalizedEmail, otpPlain);
+  const otpHash = hashOtp(normalizedPhone, otpPlain);
 
   const expiresAt = new Date(
     Date.now() + OTP_CONFIG.expiresInMinutes * 60 * 1000
   ).toISOString();
 
   const record = createEmailOtpRecord({
-    email: normalizedEmail,
+    email: normalizedPhone, // reusing email field in db record for phone
     otpHash,
     expiresAt,
   });
@@ -130,9 +130,9 @@ export function issueNewOtp(email: string): { otpPlain: string; record: EmailOtp
 /**
  * Verifies the user submitted OTP against database records
  */
-export function verifyOtp(email: string, candidateOtp: string): OtpVerificationResult {
-  const normalizedEmail = email.trim().toLowerCase();
-  const record = getLatestUnusedOtp(normalizedEmail);
+export function verifyOtp(phone: string, candidateOtp: string): OtpVerificationResult {
+  const normalizedPhone = phone.trim();
+  const record = getLatestUnusedOtp(normalizedPhone);
 
   if (!record) {
     return {
@@ -174,7 +174,7 @@ export function verifyOtp(email: string, candidateOtp: string): OtpVerificationR
   }
 
   // 4. Compare hash using timing-safe comparison
-  const isValid = verifyOtpHash(normalizedEmail, candidateOtp, record.otpHash);
+  const isValid = verifyOtpHash(normalizedPhone, candidateOtp, record.otpHash);
 
   if (!isValid) {
     const newAttempts = record.attempts + 1;
