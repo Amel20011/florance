@@ -1,0 +1,6 @@
+{
+  "name": "FLORANCE",
+  "description": "FLORANCE — Toko digital modern untuk pulsa, paket data, sewa bot WhatsApp, bot siap pakai, token, dan layanan digital premium.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
